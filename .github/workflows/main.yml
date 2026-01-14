@@ -1,0 +1,26 @@
+name: Automatic Blog Indexer
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Har 1 ghante mein chalega
+  workflow_dispatch:      # Manual button se chalane ke liye
+
+jobs:
+  check-and-index:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: pip install google-api-python-client google-auth requests
+
+      - name: Run Indexer
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: python index_monitor.py
