@@ -1,4 +1,4 @@
-name: Auto Blog Indexer with Telegram
+name: Blog Indexer 
 
 on:
   schedule:
