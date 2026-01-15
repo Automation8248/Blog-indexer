@@ -6,50 +6,55 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
 # --- CONFIGURATION ---
-# Apna asli blog URL yahan check kar lein
 BLOG_URL = "https://technovexa.blogspot.com" 
+BLOG_NAME = "Technovexa" # Aapke blog ka naam
 SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+def send_telegram_message(message):
+    """Telegram par message bhejne ke liye"""
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"}
+        try:
+            requests.post(url, json=payload)
+        except Exception as e:
+            print(f"Telegram error: {e}")
 
 def get_latest_post_url():
-    """RSS Feed se latest post ka URL nikalne ke liye"""
     feed_url = f"{BLOG_URL}/feeds/posts/default?alt=rss"
     try:
         response = requests.get(feed_url, timeout=15)
-        # Fix: 'status_status' ko badal kar 'status_code' kar diya gaya hai
         if response.status_code == 200:
             root = ET.fromstring(response.content)
-            # RSS item se link nikalna
             item = root.find('.//item')
             if item is not None:
-                latest_link = item.find('link').text
-                return latest_link
+                return item.find('link').text
     except Exception as e:
-        print(f"❌ Feed loading error: {e}")
+        print(f"❌ Feed error: {e}")
     return None
 
 def trigger_indexing(url):
-    """Google Indexing API ko request bhejne ke liye"""
-    print(f"Starting Google Indexing for: {url}")
+    print(f"Indexing request for: {url}")
     try:
-        if not SERVICE_ACCOUNT_JSON:
-            print("❌ Error: GOOGLE_SERVICE_ACCOUNT_JSON Secret is missing!")
-            return
-
         info = json.loads(SERVICE_ACCOUNT_JSON)
         scopes = ["https://www.googleapis.com/auth/indexing"]
         creds = service_account.Credentials.from_service_account_info(info, scopes=scopes)
         service = build('indexing', 'v3', credentials=creds)
         
         body = {"url": url, "type": "URL_UPDATED"}
-        result = service.urlNotifications().publish(body=body).execute()
-        print(f"✅ Google Indexing request success for: {url}")
+        service.urlNotifications().publish(body=body).execute()
+        
+        # Success Message for Telegram
+        msg = f"<b>🚀 {BLOG_NAME} Indexing Update</b>\n\n✅ Successfully Indexed:\n{url}"
+        send_telegram_message(msg)
+        print("✅ Google Indexing success!")
     except Exception as e:
-        print(f"❌ Indexing API Error: {e}")
+        print(f"❌ Indexing Error: {e}")
 
 if __name__ == "__main__":
     latest_url = get_latest_post_url()
-    
-    # URL tracking file
     last_url_file = "last_indexed_url.txt"
     last_url = ""
     
@@ -59,8 +64,7 @@ if __name__ == "__main__":
 
     if latest_url and latest_url != last_url:
         trigger_indexing(latest_url)
-        # Naya URL save karein taaki duplicate indexing na ho
         with open(last_url_file, "w") as f:
             f.write(latest_url)
     else:
-        print("ℹ️ No new posts found or already indexed.")
+        print("ℹ️ No new posts or already indexed.")
